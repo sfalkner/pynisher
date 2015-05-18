@@ -1,0 +1,12 @@
+The pynisher is a little module intended to be used to limit a functions resources.
+It starts a new process, sets the desired limits for it and executes the function inside it.
+In the end, it returns the function return value. If, for any reason, the function call is not
+successful, None is returned.
+
+Currently, the total memory usage(*), the wall clock time, the cpu time and the number of processes can be limited.
+
+
+(*) As the subprocess also includes the Python interpreter, the actual memory available to your function might be less than the specified value.
+
+
+TODO: add short example (also used as a decorator)
