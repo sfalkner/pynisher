@@ -38,7 +38,8 @@ def crash_unexpectedly(signum):
     time.sleep(1)
     os.kill(pid, signum)
     time.sleep(1)
-    
+
+# needs some improvements    
 def cpu_usage(wall_time_in_s,cpu_time_in_s ):
     cpu_percentage = (100/wall_time_in_s)*cpu_time_in_s
     return(cpu_percentage)
@@ -98,19 +99,20 @@ class test_limit_resources_module(unittest.TestCase):
             print("\nmem: {}\n".format(mem))
             self.assertIsNone(wrapped_function(mem,3,0))
     
-
+    @unittest.skipIf(not all_tests, "skipping term signal test")
     def test_num_processes(self):
         local_mem_in_mb = 350
-        local_num_processes = 2
+        local_num_processes = 1
         local_wall_time_in_s = 20
         local_grace_period = 20
         
         wrapped_function = pynisher.enforce_limits(mem_in_mb = local_mem_in_mb, wall_time_in_s=local_wall_time_in_s,num_processes = local_num_processes, grace_period_in_s = local_grace_period)(simulate_work)
         
-        for processes in [2,15,50,100,250,350,500,1000]:
+        for processes in [2,15,50,100,250]:
             print("\nprocesses: {}\n".format(processes))
             self.assertIsNone(wrapped_function(0,0, processes))
             
+    @unittest.skipIf(not all_tests, "skipping term signal test")        
     def test_limit_process(self):
         local_mem_in_mb = 67
         local_num_processes = 1
