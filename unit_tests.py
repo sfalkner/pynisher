@@ -101,15 +101,26 @@ class test_limit_resources_module(unittest.TestCase):
 
     def test_num_processes(self):
         local_mem_in_mb = 350
-        local_num_processes = 3
+        local_num_processes = 2
         local_wall_time_in_s = 20
         local_grace_period = 20
         
         wrapped_function = pynisher.enforce_limits(mem_in_mb = local_mem_in_mb, wall_time_in_s=local_wall_time_in_s,num_processes = local_num_processes, grace_period_in_s = local_grace_period)(simulate_work)
         
-        for processes in [1,15,50,100,250,350,500,1000]:
+        for processes in [2,15,50,100,250,350,500,1000]:
             print("\nprocesses: {}\n".format(processes))
             self.assertIsNone(wrapped_function(0,0, processes))
+            
+    def test_limit_process(self):
+        local_mem_in_mb = 67
+        local_num_processes = 1
+        local_wall_time_in_s = 1
+        local_grace_period = 1
+        
+        wrapped_function = pynisher.enforce_limits(mem_in_mb = local_mem_in_mb, wall_time_in_s=local_wall_time_in_s,num_processes = local_num_processes, grace_period_in_s = local_grace_period)(simulate_work)
+        self.assertIsNotNone(wrapped_function(0,0, -1))
+        
+
     # system crash when cpu_time in s and wall time in s = 0
     def test_crash_unexpectedly(self):
         local_mem_in_mb = 289
@@ -128,6 +139,7 @@ class test_cpu_usage(unittest.TestCase):
         grace_period = 1
         wrapped_function = pynisher.enforce_limits(mem_in_mb = mem_in_mb, wall_time_in_s=wall_time_in_s, cpu_time_in_s = cpu_time_in_s, grace_period_in_s = grace_period)(cpu_usage)
         self.assertEqual(75,wrapped_function(20,15))
+
         
 #logger = multiprocessing.log_to_stderr()
 #logger.setLevel(logging.DEBUG)
