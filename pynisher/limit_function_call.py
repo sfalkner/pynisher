@@ -1,7 +1,9 @@
 #! /bin/python
 import resource
 import signal
+# supports spawning processes using an API
 import multiprocessing
+# using operating system dependent functionality
 import os
 
 class abort_function (Exception): pass
@@ -9,29 +11,36 @@ class abort_function (Exception): pass
 
 # create the function the subprocess can execute
 def subprocess_func(func, pipe, mem_in_mb, cpu_time_limit_in_s, wall_time_limit_in_s, num_procs, *args, **kwargs):
-
+    # returning logger used by multiprocessing (a new one is created)
     logger = multiprocessing.get_logger()
+    # Return the id of the current process group.
     os.setpgrp()
 
     # simple signal handler to catch the signals for time limits
     def handler(signum, frame):
+        # logs message with level debug on this logger 
         logger.debug("received signal number %i. Exiting uncracefully."%signum)
         
         if (signum == signal.SIGXCPU):
+            # when process reaches soft limit --> a SIGXCPU signal is sent (it normally terminats the process)
             logger.debug("CPU time exceeded, aborting!")
         elif (signum == signal.SIGALRM):
+            # SIGALRM is sent to process when the specified time limit to an alarm function elapses (when real or clock time elapses)
             logger.debug("Wallclock time exceeded, aborting!")
             
         raise abort_function
     
     signal.signal(signal.SIGALRM, handler)
+    # SIGTERM signal is sent to a process to request its termination
     signal.signal(signal.SIGTERM, handler)
     signal.signal(signal.SIGXCPU, handler)
 
 
     # set the memory limit
     if mem_in_mb is not None:
+        # byte --> megabyte
         mem_in_b = mem_in_mb*1024*1024
+        # the maximum area (in bytes) of address space which may be taken by the process.
         resource.setrlimit(resource.RLIMIT_AS, (mem_in_b, mem_in_b))
 
     # for now: don't allow the function to spawn subprocesses itself.
@@ -73,7 +82,7 @@ def subprocess_func(func, pipe, mem_in_mb, cpu_time_limit_in_s, wall_time_limit_
     except:
         logger.debug('The call to your function did not return properly!\n%s\n%s', args, kwargs)
         raise;
-
+    # 
     finally:
         pipe.send(return_value)
         pipe.close()
