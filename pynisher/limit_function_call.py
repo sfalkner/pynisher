@@ -27,14 +27,23 @@ def subprocess_func(func, pipe, mem_in_mb, cpu_time_limit_in_s, wall_time_limit_
         elif (signum == signal.SIGALRM):
             # SIGALRM is sent to process when the specified time limit to an alarm function elapses (when real or clock time elapses)
             logger.debug("Wallclock time exceeded, aborting!")
-            
+        pipe.send(None)
+        pipe.close()   
         raise abort_function
-    
-    signal.signal(signal.SIGALRM, handler)
-    # SIGTERM signal is sent to a process to request its termination
-    signal.signal(signal.SIGTERM, handler)
-    signal.signal(signal.SIGXCPU, handler)
 
+
+	# catch all catchable signals
+    for i in [x for x in dir(signal) if x.startswith("SIG")]:
+        try:
+            signum = getattr(signal,i)
+            signal.signal(signum,handler)
+        except: # ignore problems setting the handle, surely an uncatchable signum :)
+            pass
+    
+    #signal.signal(signal.SIGALRM, handler)
+    # SIGTERM signal is sent to a process to request its termination
+    #signal.signal(signal.SIGTERM, handler)
+    #signal.signal(signal.SIGXCPU, handler)
 
     # set the memory limit
     if mem_in_mb is not None:
@@ -82,7 +91,6 @@ def subprocess_func(func, pipe, mem_in_mb, cpu_time_limit_in_s, wall_time_limit_
     except:
         logger.debug('The call to your function did not return properly!\n%s\n%s', args, kwargs)
         raise;
-    # 
     finally:
         pipe.send(return_value)
         pipe.close()
@@ -106,7 +114,7 @@ def enforce_limits (mem_in_mb=None, cpu_time_in_s=None, wall_time_in_s=None, num
         def wrapped_function(*args, **kwargs):
 
             logger = multiprocessing.get_logger()
-			
+            
             # create a pipe to retrieve the return value
             parent_conn, child_conn = multiprocessing.Pipe()
 
@@ -117,10 +125,10 @@ def enforce_limits (mem_in_mb=None, cpu_time_in_s=None, wall_time_in_s=None, num
             
             if wall_time_in_s is not None:
                 # politely wait for it to finish
-                subproc.join(wall_time_in_s + grace_period_in_s)
-
+                ready = parent_conn.poll(wall_time_in_s + grace_period_in_s)
+                
                 # if it is still alive, send sigterm
-                if subproc.is_alive():
+                if not ready:
                     logger.debug("Your function took to long, killing it now.")
                     #subproc.terminate()
                     try:
@@ -130,8 +138,8 @@ def enforce_limits (mem_in_mb=None, cpu_time_in_s=None, wall_time_in_s=None, num
                     finally:
                         subproc.join()
                         return(None)
-            else:
-                subproc.join()
+            return_value = parent_conn.recv()
+            subproc.join()
             logger.debug("Your function has returned now with exit code %i."%subproc.exitcode)
 
             # if something went wrong, 
@@ -139,7 +147,7 @@ def enforce_limits (mem_in_mb=None, cpu_time_in_s=None, wall_time_in_s=None, num
                 return(None)
 
             # return the function value from the pipe
-            return (parent_conn.recv());
+            return (return_value);
 
         return wrapped_function
 
