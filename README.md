@@ -20,8 +20,7 @@ def my_function (t):
 for t in range(5):
 	print(my_function(t))
 
-
-
+# a more explicit usage
 
 def my_other_function(t):
 	time.sleep(t)
