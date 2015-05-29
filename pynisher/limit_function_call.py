@@ -5,6 +5,8 @@ import signal
 import multiprocessing
 # using operating system dependent functionality
 import os
+import sys
+
 
 class abort_function (Exception): pass
 
@@ -108,7 +110,6 @@ def enforce_limits (mem_in_mb=None, cpu_time_in_s=None, wall_time_in_s=None, num
         logger.debug("restricting your function to {} threads/processes.".format(num_processes))
     if grace_period_in_s is None:
         grace_period_in_s = 0
-
     
     def actual_decorator(func):
 
@@ -125,52 +126,19 @@ def enforce_limits (mem_in_mb=None, cpu_time_in_s=None, wall_time_in_s=None, num
 
             return_value = None
 
-            def child_died(signum, frame):
-                logger.debug("Subprocess running your function has died!")
-                if subproc.is_alive():
-                    subproc.join()
-                if parent_conn.poll():
-                    global return_value
-                    return_value = parent_conn.recv()
-                parent_conn.close()
+            # start the process
+            subproc.start()
+            child_conn.close()
 
-            signal.pthread_sigmask(signal.SIG_UNBLOCK, {signal.SIGCHLD})
-            signal.signal(signal.SIGCHLD, child_died)
-
-            try:            
-                subproc.start()
-                if wall_time_in_s is not None:
-                    # politely wait for it to finish
-                    ready = parent_conn.poll(wall_time_in_s)
-                
-                    # if it is still alive, send sigterm for clean up
-                    # and return None to signal that it did not finish
-                    if not ready:
-                        logger.debug("Your function took to long, killing it now.")
-                        try:
-                            os.killpg(os.getpgid(subproc.pid),15)
-                            time.sleep(grace_period_in_s)
-                            logger.debug("Killing succesful!")
-                        except:
-                            logger.debug("Killing the function call failed. It probably finished already.")
-                        finally:
-                            return(None)
-                    # at this point there is something to be received
-                    return_value = parent_conn.recv()
-                    logger.debug("Your function has returned now with exit code %i."%subproc.exitcode)
-                
-                    # if something went wrong, 
-                    if subproc.exitcode != 0:
-                        logger.debug("Exit code was not 0 -> return value set to None!."%subproc.exitcode)
-                        return_value = None
-                else:
-                    signal.pause()
-
-            except: # reraise everything else
+            try:
+                # read the return value
+                return_value = parent_conn.recv()
+            except EOFError:    # Don't see that in the unit tests :(
+                logger.debug("Your function call closed the pipe prematurely -> None will be returned")
+                return_value = None
+            except:
                 raise
-
             finally:
                 return (return_value); 
         return wrapped_function
     return actual_decorator
-

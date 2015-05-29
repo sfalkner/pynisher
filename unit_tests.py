@@ -12,10 +12,8 @@ import pynisher
 all_tests=1
 
 
-# TODO: get rid of numpy just to create some data of fixed size!
-#       add tests for cpu usage
-#       add test for num_processes
-#       add test with crash_unexpectedly to see what happens if the function call dies!
+# TODO: add tests with large return value test for deadlock!
+
 
 def simulate_work(size_in_mb, wall_time_in_s, num_processes):
     # allocate memory (size_in_mb) with an array
@@ -39,12 +37,15 @@ def crash_unexpectedly(signum):
     os.kill(pid, signum)
     time.sleep(1)
 
-# needs some improvements    
+def return_big_array(num_elements):
+    return([1]*num_elements)
+
 def cpu_usage():
     import random
     while True:
         x = random.random()
         x = x*x
+
 
 
 class test_limit_resources_module(unittest.TestCase):
@@ -73,7 +74,7 @@ class test_limit_resources_module(unittest.TestCase):
         
         wrapped_function = pynisher.enforce_limits(mem_in_mb = local_mem_in_mb, wall_time_in_s=local_wall_time_in_s, cpu_time_in_s = local_cpu_time_in_s, grace_period_in_s = local_grace_period)(simulate_work)
     
-        for mem in [256,512,1024]:
+        for mem in [1024, 2048, 4096]:
             self.assertIsNone(wrapped_function(mem,0,0))
     
     @unittest.skipIf(not all_tests, "skipping time_out test")
@@ -117,13 +118,21 @@ class test_limit_resources_module(unittest.TestCase):
         grace_period = None
         wrapped_function = pynisher.enforce_limits(cpu_time_in_s = cpu_time_in_s, grace_period_in_s = grace_period)(cpu_usage)
         self.assertEqual(None,wrapped_function())
+        
+        
+    @unittest.skipIf(not all_tests, "skipping big data test")
+    def test_big_return_data(self):
+        print("Testing big return values")
+        wrapped_function = pynisher.enforce_limits()(return_big_array)
+        
+        for num_elements in [4,16,64, 256, 1024, 4096, 16384, 65536, 262144]:
+            bla = wrapped_function(num_elements)
+            self.assertEqual(len(bla), num_elements)
+        
 
 
-#logger = multiprocessing.log_to_stderr()
-#logger.setLevel(logging.INFO)
+logger = multiprocessing.log_to_stderr()
+logger.setLevel(logging.DEBUG)
 
 unittest.main()
-
-#wrapped_function = pynisher.enforce_limits(wall_time_in_s = 10, num_processes = 1)(simulate_work)       
-#print(wrapped_function(0,0, 5))
 
