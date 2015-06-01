@@ -34,12 +34,17 @@ def subprocess_func(func, pipe, mem_in_mb, cpu_time_limit_in_s, wall_time_limit_
     
 
     # catch all catchable signals
-    for i in [x for x in dir(signal) if x.startswith("SIG")]:
-        try:
-            signum = getattr(signal,i)
-            signal.signal(signum,handler)
-        except: # ignore problems setting the handle, surely an uncatchable signum :)
-            pass
+    #for i in [x for x in dir(signal) if x.startswith("SIG")]:
+    #    try:
+    #        signum = getattr(signal,i)
+    #        signal.signal(signum,handler)
+    #    except: # ignore problems setting the handle, surely an uncatchable signum :)
+    #        pass
+
+
+    # catching all signals at this point turned out to interfer with the subprocess (e.g. using ROS)
+    signal.signal(signal.SIGALRM, handler)
+    signal.signal(signal.SIGXCPU, handler)
 
     # set the memory limit
     if mem_in_mb is not None:
