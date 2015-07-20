@@ -6,7 +6,6 @@ Currently, the total memory usage(*), the wall clock time, the cpu time and the 
 (*) As the subprocess also includes the Python interpreter, the actual memory available to your function is less than the specified value.
 
 
-TODO: add short example (also used as a decorator)
 ```python
 import pynisher
 import time
