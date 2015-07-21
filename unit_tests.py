@@ -112,8 +112,6 @@ class test_limit_resources_module(unittest.TestCase):
     @unittest.skipIf(not all_tests, "skipping unexpected signal test")
     def test_high_cpu_percentage(self):
         print("Testing cpu time constraint.")
-        mem_in_mb = None
-        wall_time_in_s = None
         cpu_time_in_s = 1
         grace_period = None
         wrapped_function = pynisher.enforce_limits(cpu_time_in_s = cpu_time_in_s, grace_period_in_s = grace_period)(cpu_usage)
