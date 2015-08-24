@@ -8,11 +8,30 @@ import signal
 import logging
 
 import pynisher
+import psutil
+
 
 all_tests=1
 
 
 # TODO: add tests with large return value test for deadlock!
+
+def rogue_subprocess():
+    pid = os.getpid()
+    os.setpgrp()
+    print("{}: Changed group id to {}".format(pid, os.getpgrp()))
+    time.sleep(60)
+
+
+def spawn_rogue_subprocess(num_procs = 5):
+    for i in range(num_procs):
+        p = multiprocessing.Process(target=rogue_subprocess, daemon=False)
+        p.start()
+    p = psutil.Process()
+    time.sleep(10)
+       
+
+
 
 
 def simulate_work(size_in_mb, wall_time_in_s, num_processes):
@@ -127,10 +146,18 @@ class test_limit_resources_module(unittest.TestCase):
             bla = wrapped_function(num_elements)
             self.assertEqual(len(bla), num_elements)
         
+    @unittest.skipIf(all_tests, "skipping subprocess changing process group")
+    def test_kill_subprocesses(self):
+        wrapped_function = pynisher.enforce_limits(wall_time_in_s = 1)(spawn_rogue_subprocess)
+        wrapped_function(5)
 
-
-logger = multiprocessing.log_to_stderr()
-logger.setLevel(logging.DEBUG)
+        time.sleep(1)
+        p = psutil.Process()
+        self.assertEqual(len(p.children(recursive=True)), 0)
+        
+#logger = multiprocessing.log_to_stderr()
+#logger.setLevel(logging.DEBUG)
 
 unittest.main()
+
 

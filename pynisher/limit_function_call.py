@@ -7,16 +7,14 @@ import multiprocessing
 import os
 import sys
 
+import psutil
 
 class abort_function (Exception): pass
-
 
 # create the function the subprocess can execute
 def subprocess_func(func, pipe, mem_in_mb, cpu_time_limit_in_s, wall_time_limit_in_s, num_procs, *args, **kwargs):
     # returning logger used by multiprocessing (a new one is created)
     logger = multiprocessing.get_logger()
-    # Return the id of the current process group.
-    os.setpgrp()
 
     # simple signal handler to catch the signals for time limits
     def handler(signum, frame):
@@ -31,15 +29,6 @@ def subprocess_func(func, pipe, mem_in_mb, cpu_time_limit_in_s, wall_time_limit_
             # SIGALRM is sent to process when the specified time limit to an alarm function elapses (when real or clock time elapses)
             logger.warning("Wallclock time exceeded, aborting!")
         raise abort_function
-    
-
-    # catch all catchable signals
-    #for i in [x for x in dir(signal) if x.startswith("SIG")]:
-    #    try:
-    #        signum = getattr(signal,i)
-    #        signal.signal(signum,handler)
-    #    except: # ignore problems setting the handle, surely an uncatchable signum :)
-    #        pass
 
 
     # catching all signals at this point turned out to interfer with the subprocess (e.g. using ROS)
@@ -65,9 +54,7 @@ def subprocess_func(func, pipe, mem_in_mb, cpu_time_limit_in_s, wall_time_limit_
         signal.alarm(wall_time_limit_in_s)
     
     if cpu_time_limit_in_s is not None:
-        # one could also limit the actual CPU time, but that does not help if the process hangs, e.g., in a dead-lock
         resource.setrlimit(resource.RLIMIT_CPU, (cpu_time_limit_in_s,cpu_time_limit_in_s))
-
 
     return_value = None
     # the actual function call
@@ -97,6 +84,10 @@ def subprocess_func(func, pipe, mem_in_mb, cpu_time_limit_in_s, wall_time_limit_
         try:
             pipe.send(return_value)
             pipe.close()
+            # recursively kill all children
+            p = psutil.Process()
+            for child in p.children(recursive=True):
+                child.kill()
         except:
             pass
 
@@ -126,7 +117,7 @@ def enforce_limits (mem_in_mb=None, cpu_time_in_s=None, wall_time_in_s=None, num
             parent_conn, child_conn = multiprocessing.Pipe()
 
             # create and start the process
-            subproc = multiprocessing.Process(target=subprocess_func, name="Call to your function", args = (func, child_conn,mem_in_mb, cpu_time_in_s, wall_time_in_s, num_processes) + args ,kwargs = kwargs)
+            subproc = multiprocessing.Process(target=subprocess_func, name="pynisher function call", args = (func, child_conn,mem_in_mb, cpu_time_in_s, wall_time_in_s, num_processes) + args ,kwargs = kwargs)
             logger.debug("Your function is called now.")
 
             return_value = None
@@ -144,6 +135,8 @@ def enforce_limits (mem_in_mb=None, cpu_time_in_s=None, wall_time_in_s=None, num
             except:
                 raise
             finally:
+                # don't leave zombies behind
+                subproc.join()
                 return (return_value); 
         return wrapped_function
     return actual_decorator
