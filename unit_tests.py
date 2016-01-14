@@ -11,15 +11,25 @@ import pynisher
 import psutil
 
 
-all_tests=1
+try:
+    import sklearn
+    is_sklearn_available = True
+except ImportError:
+    print("Scikit Learn was not found!")
+    is_sklearn_available = False    
 
+
+all_tests=True
+logger = multiprocessing.log_to_stderr()
+logger.setLevel(logging.INFO)
 
 # TODO: add tests with large return value test for deadlock!
 
 def rogue_subprocess():
     pid = os.getpid()
+    oldgrp = os.getpgrp()
     os.setpgrp()
-    print("{}: Changed group id to {}".format(pid, os.getpgrp()))
+    logger.info("{}: Changed group id from {} to {}".format(pid, oldgrp, os.getpgrp()))
     time.sleep(60)
 
 
@@ -30,8 +40,6 @@ def spawn_rogue_subprocess(num_procs = 5):
     p = psutil.Process()
     time.sleep(10)
        
-
-
 
 
 def simulate_work(size_in_mb, wall_time_in_s, num_processes):
@@ -49,6 +57,15 @@ def simulate_work(size_in_mb, wall_time_in_s, num_processes):
     return(size_in_mb, wall_time_in_s, num_processes);
 
 
+def svm_example(n_samples = 10000, n_features = 100):
+	from sklearn.svm import SVR
+	from sklearn.datasets import make_regression
+	
+	X,Y = make_regression(n_samples, n_features)
+	m = SVR()
+	
+	m.fit(X,Y)
+		
 def crash_unexpectedly(signum):
     print("going to receive signal {}.".format(signum))
     pid = os.getpid()
@@ -64,7 +81,6 @@ def cpu_usage():
     while True:
         x = random.random()
         x = x*x
-
 
 
 class test_limit_resources_module(unittest.TestCase):
@@ -146,7 +162,7 @@ class test_limit_resources_module(unittest.TestCase):
             bla = wrapped_function(num_elements)
             self.assertEqual(len(bla), num_elements)
         
-    @unittest.skipIf(all_tests, "skipping subprocess changing process group")
+    @unittest.skipIf(not all_tests, "skipping subprocess changing process group")
     def test_kill_subprocesses(self):
         wrapped_function = pynisher.enforce_limits(wall_time_in_s = 1)(spawn_rogue_subprocess)
         wrapped_function(5)
@@ -155,8 +171,16 @@ class test_limit_resources_module(unittest.TestCase):
         p = psutil.Process()
         self.assertEqual(len(p.children(recursive=True)), 0)
         
-#logger = multiprocessing.log_to_stderr()
-#logger.setLevel(logging.DEBUG)
+    @unittest.skipIf(not is_sklearn_available, "test requires scikit learn")
+    @unittest.skipIf(not all_tests, "skipping fitting an SVM to see how C libraries are handles")
+    def test_busy_in_C_library(self):
+        wrapped_function = pynisher.enforce_limits(wall_time_in_s = 1)(svm_example)
+        wrapped_function(16384, 128)
+
+        time.sleep(1)
+        p = psutil.Process()
+        self.assertEqual(len(p.children(recursive=True)), 0)
+    
 
 unittest.main()
 

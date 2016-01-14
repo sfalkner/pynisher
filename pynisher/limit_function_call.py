@@ -128,7 +128,11 @@ def enforce_limits (mem_in_mb=None, cpu_time_in_s=None, wall_time_in_s=None, num
 
             try:
                 # read the return value
-                return_value = parent_conn.recv()
+                if parent_conn.poll(wall_time_in_s):
+                    return_value = parent_conn.recv()
+                else:
+                    subproc.terminate()
+                
             except EOFError:    # Don't see that in the unit tests :(
                 logger.debug("Your function call closed the pipe prematurely -> None will be returned")
                 return_value = None

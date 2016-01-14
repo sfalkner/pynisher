@@ -3,7 +3,7 @@ from setuptools import setup
 
 setup(
     name = 'pynisher',
-    version = "0.3",
+    version = "0.3.1",
     packages = ['pynisher'],
     install_requires = ['docutils>=0.3', 'setuptools'],
     author = "Stefan Falkner",
