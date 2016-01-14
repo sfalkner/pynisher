@@ -16,10 +16,10 @@ try:
     is_sklearn_available = True
 except ImportError:
     print("Scikit Learn was not found!")
-    is_sklearn_available = False    
+    is_sklearn_available = False
 
 
-all_tests=True
+all_tests=False
 logger = multiprocessing.log_to_stderr()
 logger.setLevel(logging.INFO)
 
@@ -39,7 +39,7 @@ def spawn_rogue_subprocess(num_procs = 5):
         p.start()
     p = psutil.Process()
     time.sleep(10)
-       
+
 
 
 def simulate_work(size_in_mb, wall_time_in_s, num_processes):
@@ -58,14 +58,14 @@ def simulate_work(size_in_mb, wall_time_in_s, num_processes):
 
 
 def svm_example(n_samples = 10000, n_features = 100):
-	from sklearn.svm import SVR
-	from sklearn.datasets import make_regression
-	
-	X,Y = make_regression(n_samples, n_features)
-	m = SVR()
-	
-	m.fit(X,Y)
-		
+    from sklearn.svm import SVR
+    from sklearn.datasets import make_regression
+
+    X,Y = make_regression(n_samples, n_features)
+    m = SVR()
+
+    m.fit(X,Y)
+
 def crash_unexpectedly(signum):
     print("going to receive signal {}.".format(signum))
     pid = os.getpid()
@@ -87,15 +87,15 @@ class test_limit_resources_module(unittest.TestCase):
 
     @unittest.skipIf(not all_tests, "skipping successful tests")
     def test_success(self):
-        
+
         print("Testing unbounded function call which have to run through!")
         local_mem_in_mb = None
         local_wall_time_in_s = None
         local_cpu_time_in_s = None
         local_grace_period = None
-        
+
         wrapped_function = pynisher.enforce_limits(mem_in_mb = local_mem_in_mb, wall_time_in_s=local_wall_time_in_s, cpu_time_in_s = local_cpu_time_in_s, grace_period_in_s = local_grace_period)(simulate_work)
-        
+
         for mem in [1,2,4,8,16]:
             self.assertEqual((mem,0,0),wrapped_function(mem,0,0))
 
@@ -106,12 +106,12 @@ class test_limit_resources_module(unittest.TestCase):
         local_wall_time_in_s = None
         local_cpu_time_in_s = None
         local_grace_period = None
-        
+
         wrapped_function = pynisher.enforce_limits(mem_in_mb = local_mem_in_mb, wall_time_in_s=local_wall_time_in_s, cpu_time_in_s = local_cpu_time_in_s, grace_period_in_s = local_grace_period)(simulate_work)
-    
+
         for mem in [1024, 2048, 4096]:
             self.assertIsNone(wrapped_function(mem,0,0))
-    
+
     @unittest.skipIf(not all_tests, "skipping time_out test")
     def test_time_out(self):
         print("Testing wall clock time constraint.")
@@ -119,9 +119,9 @@ class test_limit_resources_module(unittest.TestCase):
         local_wall_time_in_s = 1
         local_cpu_time_in_s = None
         local_grace_period = None
-        
+
         wrapped_function = pynisher.enforce_limits(mem_in_mb = local_mem_in_mb, wall_time_in_s=local_wall_time_in_s, cpu_time_in_s = local_cpu_time_in_s, grace_period_in_s = local_grace_period)(simulate_work)
-    
+
         for mem in range(1,10):
             self.assertIsNone(wrapped_function(mem,10,0))
 
@@ -132,9 +132,9 @@ class test_limit_resources_module(unittest.TestCase):
         local_num_processes = 1
         local_wall_time_in_s = None
         local_grace_period = None
-        
+
         wrapped_function = pynisher.enforce_limits(mem_in_mb = local_mem_in_mb, wall_time_in_s=local_wall_time_in_s,num_processes = local_num_processes, grace_period_in_s = local_grace_period)(simulate_work)
-        
+
         for processes in [2,15,50,100,250]:
             self.assertIsNone(wrapped_function(0,0, processes))
 
@@ -143,7 +143,7 @@ class test_limit_resources_module(unittest.TestCase):
         print("Testing an unexpected signal simulating a crash.")
         wrapped_function = pynisher.enforce_limits()(crash_unexpectedly)
         self.assertIsNone(wrapped_function(signal.SIGQUIT))
-        
+
     @unittest.skipIf(not all_tests, "skipping unexpected signal test")
     def test_high_cpu_percentage(self):
         print("Testing cpu time constraint.")
@@ -151,17 +151,17 @@ class test_limit_resources_module(unittest.TestCase):
         grace_period = None
         wrapped_function = pynisher.enforce_limits(cpu_time_in_s = cpu_time_in_s, grace_period_in_s = grace_period)(cpu_usage)
         self.assertEqual(None,wrapped_function())
-        
-        
+
+
     @unittest.skipIf(not all_tests, "skipping big data test")
     def test_big_return_data(self):
         print("Testing big return values")
         wrapped_function = pynisher.enforce_limits()(return_big_array)
-        
+
         for num_elements in [4,16,64, 256, 1024, 4096, 16384, 65536, 262144]:
             bla = wrapped_function(num_elements)
             self.assertEqual(len(bla), num_elements)
-        
+
     @unittest.skipIf(not all_tests, "skipping subprocess changing process group")
     def test_kill_subprocesses(self):
         wrapped_function = pynisher.enforce_limits(wall_time_in_s = 1)(spawn_rogue_subprocess)
@@ -170,17 +170,21 @@ class test_limit_resources_module(unittest.TestCase):
         time.sleep(1)
         p = psutil.Process()
         self.assertEqual(len(p.children(recursive=True)), 0)
-        
+
     @unittest.skipIf(not is_sklearn_available, "test requires scikit learn")
-    @unittest.skipIf(not all_tests, "skipping fitting an SVM to see how C libraries are handles")
+    @unittest.skipIf(all_tests, "skipping fitting an SVM to see how C libraries are handles")
     def test_busy_in_C_library(self):
-        wrapped_function = pynisher.enforce_limits(wall_time_in_s = 1)(svm_example)
+        wrapped_function = pynisher.enforce_limits(wall_time_in_s = 2)(svm_example)
+
+        start = time.time()
         wrapped_function(16384, 128)
+        duration = time.time()-start
 
         time.sleep(1)
         p = psutil.Process()
         self.assertEqual(len(p.children(recursive=True)), 0)
-    
+        self.assertTrue(duration < 2.1)
+
 
 unittest.main()
 
