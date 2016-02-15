@@ -16,9 +16,7 @@ class SubprocessException (Exception): pass
 class AnythingException (Exception): pass
 
 # create the function the subprocess can execute
-def subprocess_func(func, parent_pipe, pipe, logger, mem_in_mb, cpu_time_limit_in_s, wall_time_limit_in_s, num_procs, *args, **kwargs):
-
-	parent_pipe.close()
+def subprocess_func(func, pipe, logger, mem_in_mb, cpu_time_limit_in_s, wall_time_limit_in_s, num_procs, grace_period_in_s,*args, **kwargs):
 
 	# simple signal handler to catch the signals for time limits
 	def handler(signum, frame):
@@ -26,9 +24,7 @@ def subprocess_func(func, parent_pipe, pipe, logger, mem_in_mb, cpu_time_limit_i
 		logger.debug("signal handler: %i"%signum)
 		if (signum == signal.SIGXCPU):
 			# when process reaches soft limit --> a SIGXCPU signal is sent (it normally terminats the process)
-			#raise(CpuTimeoutException)
-			pipe.send((None, CpuTimeoutException))
-			pipe.close()
+			raise(CpuTimeoutException)
 		elif (signum == signal.SIGALRM):
 			# SIGALRM is sent to process when the specified time limit to an alarm function elapses (when real or clock time elapses)
 			logger.debug("timeout")
@@ -41,6 +37,8 @@ def subprocess_func(func, parent_pipe, pipe, logger, mem_in_mb, cpu_time_limit_i
 	signal.signal(signal.SIGXCPU, handler)
 	signal.signal(signal.SIGQUIT, handler)
 
+	# code to catch EVERY catchable signal (even X11 related ones ... )
+	# only use for debugging/testing as this seems to be to intrusive.
 	"""
 	for i in [x for x in dir(signal) if x.startswith("SIG")]:
 		try:
@@ -70,58 +68,57 @@ def subprocess_func(func, parent_pipe, pipe, logger, mem_in_mb, cpu_time_limit_i
 		signal.alarm(wall_time_limit_in_s)
 	
 	if cpu_time_limit_in_s is not None:
-		resource.setrlimit(resource.RLIMIT_CPU, (cpu_time_limit_in_s,cpu_time_limit_in_s))
+		# From the Linux man page:
+		# When the process reaches the soft limit, it is sent a SIGXCPU signal.
+		# The default action for this signal is to terminate the process.
+		# However, the signal can be caught, and the handler can return control 
+		# to the main program. If the process continues to consume CPU time,
+		# it will be sent SIGXCPU once per second until the hard limit is reached,
+		# at which time it is sent SIGKILL.
+		resource.setrlimit(resource.RLIMIT_CPU, (cpu_time_limit_in_s,cpu_time_limit_in_s+grace_period_in_s))
 
 	# the actual function call
 	try:
 		logger.debug("call function")
 		return_value = ((func(*args, **kwargs), 0))
-		logger.debug(return_value)
+		logger.debug("function returned properly: {}".format(return_value))
 	except MemoryError:
-		logger.debug("1")
 		return_value = (None, MemorylimitException)
 
 	except OSError as e:
-		logger.debug("2"*20)
 		if (e.errno == 11):
 			return_value = (None, SubprocessException)
 		else:
 			return_value = (None, AnyithingException)
 
 	except CpuTimeoutException:
-		logger.debug("3"*20)
 		return_value = (None, CpuTimeoutException)
 
 	except TimeoutException:
-		logger.debug("4"*20)
 		return_value = (None, TimeoutException)
 
 	except AnythingException as e:
-		logger.debug("5"*20)
 		return_value = (None, AnythingException)
 	except:
 		raise
 		logger.debug("Some wired exception occured!")
 		
 	finally:
-		logger.debug("6"*20)
-		if True:
-			logger.debug("="*30)
-			logger.debug(return_value)
-			logger.debug("="*30)
+		try:
+			logger.debug("return value: {}".format(return_value))
 			
 			pipe.send(return_value)
 			pipe.close()
+
+		except:
+			# this part should only fail if the parent process is alread dead, so there is not much to do anymore :)
+			pass
+		finally:
 			# recursively kill all children
 			p = psutil.Process()
 			for child in p.children(recursive=True):
 				child.kill()
-
-
 			
-		#except:
-		#	# this part should only fail if the parent process is alread dead, so there is not much to do anymore :)
-		#	pass
 
 """
 def enforce_limits (mem_in_mb=None, cpu_time_in_s=None, wall_time_in_s=None, num_processes=None, grace_period_in_s = None):
@@ -211,7 +208,7 @@ class enforce_limits (object):
 				parent_conn, child_conn = multiprocessing.Pipe()
 
 				# create and start the process
-				subproc = multiprocessing.Process(target=subprocess_func, name="pynisher function call", args = (self2.func, parent_conn, child_conn, self.logger, self.mem_in_mb, self.cpu_time_in_s, self.wall_time_in_s, self.num_processes) + args ,kwargs = kwargs)
+				subproc = multiprocessing.Process(target=subprocess_func, name="pynisher function call", args = (self2.func, child_conn, self.logger, self.mem_in_mb, self.cpu_time_in_s, self.wall_time_in_s, self.num_processes, self.grace_period_in_s) + args ,kwargs = kwargs)
 				self.logger.debug("Function called with argumen: {}, {}".format(args, kwargs))
 
 
@@ -221,7 +218,6 @@ class enforce_limits (object):
 
 				try:
 					# read the return value
-					print("waiting for response")
 					if (self.wall_time_in_s is not None):
 						if parent_conn.poll(self.wall_time_in_s+self.grace_period_in_s):
 							self2.result, self2.exit_status = parent_conn.recv()
@@ -230,23 +226,15 @@ class enforce_limits (object):
 							self2.exit_status = TimeoutException
 							
 					else:
-						print("no wall time limit, so wait forever")
 						self2.result, self2.exit_status = parent_conn.recv()
 
-					print("="*30)
-					print(self2.result, self2.exit_status)
-					print("="*30)
-				
 				except EOFError:    # Don't see that in the unit tests :(
-					self.logger.debug("Your function call closed the pipe prematurely -> Function was most likely stuck in some extension code that did not terminate properly.")
+					self.logger.debug("Your function call closed the pipe prematurely -> Subprocess probably got an uncatchable signal.")
 					
-					print(vars(subproc))
-					
-					self2.resources = resource.getrusage(resource.RUSAGE_CHILDREN)
-					print(self2.resources)
-					print(resource.getrusage(resource.RUSAGE_SELF))
-					
+					self2.resources_function = resource.getrusage(resource.RUSAGE_CHILDREN)
+					self2.resources_pynisher = resource.getrusage(resource.RUSAGE_SELF)
 					self2.exit_status = AnythingException
+
 				except:
 					self.logger.debug("Something else went wrong, sorry.")
 				finally:

@@ -19,9 +19,9 @@ except ImportError:
 	is_sklearn_available = False
 
 
-all_tests=0
+all_tests=1
 logger = multiprocessing.log_to_stderr()
-logger.setLevel(logging.DEBUG)
+logger.setLevel(logging.INFO)
 
 # TODO: add tests with large return value to test for deadlock!
 
@@ -90,12 +90,12 @@ def cpu_usage():
 		i += 1
 
 
-def nested_pynisher(level=2, cputime=5, walltime=5, memlimit = 10e24, increment = -1):
+def nested_pynisher(level=2, cputime=5, walltime=5, memlimit = 10e24, increment = -1, grace_period = 1):
 	print("this is level {}".format(level))
 	if level == 0:
 		spawn_rogue_subprocess(10)
 	else:
-		func = pynisher.enforce_limits(mem_in_mb=memlimit, cpu_time_in_s=cputime, wall_time_in_s=walltime)(nested_pynisher)
+		func = pynisher.enforce_limits(mem_in_mb=memlimit, cpu_time_in_s=cputime, wall_time_in_s=walltime, grace_period_in_s = grace_period)(nested_pynisher)
 		func(level-1, None, walltime+increment, memlimit, increment)
 
 
@@ -114,11 +114,12 @@ class test_limit_resources_module(unittest.TestCase):
 
 		for mem in [1,2,4,8,16]:
 			self.assertEqual((mem,0,0),wrapped_function(mem,0,0))
+			self.assertEqual(wrapped_function.exit_status, 0)
 
 	@unittest.skipIf(not all_tests, "skipping out_of_memory test")
 	def test_out_of_memory(self):
 		print("Testing memory constraint.")
-		local_mem_in_mb = 64
+		local_mem_in_mb = 32
 		local_wall_time_in_s = None
 		local_cpu_time_in_s = None
 		local_grace_period = None
@@ -127,6 +128,7 @@ class test_limit_resources_module(unittest.TestCase):
 
 		for mem in [1024, 2048, 4096]:
 			self.assertIsNone(wrapped_function(mem,0,0))
+			self.assertEqual(wrapped_function.exit_status, pynisher.MemorylimitException)
 
 	@unittest.skipIf(not all_tests, "skipping time_out test")
 	def test_time_out(self):
@@ -140,6 +142,7 @@ class test_limit_resources_module(unittest.TestCase):
 
 		for mem in range(1,10):
 			self.assertIsNone(wrapped_function(mem,10,0))
+			self.assertEqual(wrapped_function.exit_status, pynisher.TimeoutException)
 
 	@unittest.skipIf(not all_tests, "skipping too many processes test")
 	def test_num_processes(self):
@@ -153,12 +156,14 @@ class test_limit_resources_module(unittest.TestCase):
 
 		for processes in [2,15,50,100,250]:
 			self.assertIsNone(wrapped_function(0,0, processes))
+			self.assertEqual(wrapped_function.exit_status, pynisher.SubprocessException)
 
 	@unittest.skipIf(not all_tests, "skipping unexpected signal test")
 	def test_crash_unexpectedly(self):
 		print("Testing an unexpected signal simulating a crash.")
 		wrapped_function = pynisher.enforce_limits()(crash_unexpectedly)
 		self.assertIsNone(wrapped_function(signal.SIGQUIT))
+		self.assertEqual(wrapped_function.exit_status, pynisher.AnythingException)
 
 	@unittest.skipIf(not all_tests, "skipping unexpected signal test")
 	def test_high_cpu_percentage(self):
@@ -190,6 +195,9 @@ class test_limit_resources_module(unittest.TestCase):
 	@unittest.skipIf(not is_sklearn_available, "test requires scikit learn")
 	@unittest.skipIf(not all_tests, "skipping fitting an SVM to see how C libraries are handles")
 	def test_busy_in_C_library(self):
+		
+		global logger
+		
 		wrapped_function = pynisher.enforce_limits(wall_time_in_s = 2)(svm_example)
 
 		start = time.time()
@@ -203,35 +211,34 @@ class test_limit_resources_module(unittest.TestCase):
 
 
 	@unittest.skipIf(not is_sklearn_available, "test requires scikit learn")
-	@unittest.skipIf(all_tests, "skipping fitting an SVM to see how C libraries are handles")
+	@unittest.skipIf(not all_tests, "skipping fitting an SVM to see how C libraries are handles")
 	def test_liblinear_svc(self):
 		
 		global logger
 		
-		time_limit = 3
-		wrapped_function = pynisher.enforce_limits(cpu_time_in_s = time_limit, mem_in_mb=None, grace_period_in_s=1, logger=logger)(svc_example)
-		#wrapped_function = pynisher.enforce_limits(cpu_time_in_s = time_limit, mem_in_mb=None, grace_period_in_s=1)(cpu_usage)	
+		time_limit = 2
+		grace_period = 1
+		
+		wrapped_function = pynisher.enforce_limits(cpu_time_in_s = time_limit, mem_in_mb=None, grace_period_in_s=grace_period, logger=logger)(svc_example)
 		start = time.time()
-		print(wrapped_function(16384, 1000))
-		#print("ut:", wrapped_function())
+		wrapped_function(16384, 1000)
 		duration = time.time()-start
 
 		time.sleep(1)
 		p = psutil.Process()
 		self.assertEqual(len(p.children(recursive=True)), 0)
-		print(vars(wrapped_function))
-		print(wrapped_function.exit_status)
-		self.assertTrue(wrapped_function.exit_status == pynisher.TimeoutException)
+		self.assertTrue(wrapped_function.exit_status == pynisher.CpuTimeoutException)
 		self.assertTrue(duration > time_limit-0.1)
-		self.assertTrue(duration < time_limit+0.1)
+		self.assertTrue(duration < time_limit+grace_period+0.1)
 
 	@unittest.skipIf(not all_tests, "skipping nested pynisher test")
 	def test_nesting(self):
 		
-		tl = 1
+		tl = 2	#time limit
+		gp = 1	#grace period
 	   
 		start = time.time()
-		nested_pynisher(level=2, cputime = 1, walltime = None, memlimit = None, increment = 1)
+		nested_pynisher(level=2, cputime = 2, walltime = 2, memlimit = None, increment = 1, grace_period = gp)
 		duration = time.time()-start
 		print(duration)
 
@@ -239,7 +246,7 @@ class test_limit_resources_module(unittest.TestCase):
 		p = psutil.Process()
 		self.assertEqual(len(p.children(recursive=True)), 0)
 		self.assertTrue(duration > tl-0.1)
-		self.assertTrue(duration < tl+0.1)
+		self.assertTrue(duration < tl+gp+0.1)
 
 
 unittest.main()
