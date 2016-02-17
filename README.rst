@@ -9,6 +9,7 @@ Currently, the total memory usage(*), wall and cpu time, and the number of subpr
 (*) As the subprocess also includes the Python interpreter, the actual memory available to your function is less than the specified value.
 
 To show the basic usage, consider the following script
+
 .. code-block:: python
 
         import pynisher
@@ -26,6 +27,7 @@ To show the basic usage, consider the following script
 The full list of argments to enforce_limits reads: 
 
 .. code-block:: python
+
 		pynisher.enforce_limits(mem_in_mb=None,\
 								cpu_time_in_s=None,\
 								wall_time_in_s=None,\
@@ -51,6 +53,7 @@ you can use the object returned from pynisher.enforce_limits. Consider this
 slight variation of the above example:
 
 .. code-block:: python
+
 		import pynisher
 		import time
 
@@ -71,6 +74,7 @@ the actual result, but also an indicator of what happend. The ```exit_status``` 
 is either zero (function returned properly) or one of the following exceptions:
 
 .. code-block:: python
+
 		pynisher.CpuTimeoutException	# CPU time limit was reached
 		pynisher.TimeoutException		# Wall clock time limit exceeded
 		pynisher.MemorylimitException	# function hit the memory constraint
