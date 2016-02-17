@@ -21,7 +21,7 @@ except ImportError:
 
 all_tests=1
 logger = multiprocessing.log_to_stderr()
-logger.setLevel(logging.INFO)
+logger.setLevel(logging.WARNING)
 
 # TODO: add tests with large return value to test for deadlock!
 
@@ -29,7 +29,7 @@ def rogue_subprocess():
 	pid = os.getpid()
 	oldgrp = os.getpgrp()
 	os.setpgrp()
-	logger.info("{}: Changed group id from {} to {}".format(pid, oldgrp, os.getpgrp()))
+	logger.debug("{}: Changed group id from {} to {}".format(pid, oldgrp, os.getpgrp()))
 	time.sleep(60)
 
 def spawn_rogue_subprocess(num_procs = 5):
@@ -168,11 +168,12 @@ class test_limit_resources_module(unittest.TestCase):
 	@unittest.skipIf(not all_tests, "skipping unexpected signal test")
 	def test_high_cpu_percentage(self):
 		print("Testing cpu time constraint.")
-		cpu_time_in_s = 1
-		grace_period = None
+		cpu_time_in_s = 2
+		grace_period = 1
 		wrapped_function = pynisher.enforce_limits(cpu_time_in_s = cpu_time_in_s, grace_period_in_s = grace_period)(cpu_usage)
+		
 		self.assertEqual(None,wrapped_function())
-
+		self.assertEqual(wrapped_function.exit_status, pynisher.CpuTimeoutException)
 
 	@unittest.skipIf(not all_tests, "skipping big data test")
 	def test_big_return_data(self):

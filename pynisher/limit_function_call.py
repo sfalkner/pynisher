@@ -38,7 +38,7 @@ def subprocess_func(func, pipe, logger, mem_in_mb, cpu_time_limit_in_s, wall_tim
 	signal.signal(signal.SIGQUIT, handler)
 
 	# code to catch EVERY catchable signal (even X11 related ones ... )
-	# only use for debugging/testing as this seems to be to intrusive.
+	# only use for debugging/testing as this seems to be too intrusive.
 	"""
 	for i in [x for x in dir(signal) if x.startswith("SIG")]:
 		try:
@@ -120,59 +120,6 @@ def subprocess_func(func, pipe, logger, mem_in_mb, cpu_time_limit_in_s, wall_tim
 				child.kill()
 			
 
-"""
-def enforce_limits (mem_in_mb=None, cpu_time_in_s=None, wall_time_in_s=None, num_processes=None, grace_period_in_s = None):
-
-	logger = multiprocessing.get_logger()
-	
-	if mem_in_mb is not None:
-		logger.debug("restricting your function to {} mb memory.".format(mem_in_mb))
-	if cpu_time_in_s is not None:
-		logger.debug("restricting your function to {} seconds cpu time.".format(cpu_time_in_s))
-	if wall_time_in_s is not None:
-		logger.debug("restricting your function to {} seconds wall time.".format(wall_time_in_s))
-	if num_processes is not None:
-		logger.debug("restricting your function to {} threads/processes.".format(num_processes))
-	if grace_period_in_s is None:
-		grace_period_in_s = 0
-	
-	def actual_decorator(func):
-		def wrapped_function(*args, **kwargs):
-			logger = multiprocessing.get_logger()
-			
-			# create a pipe to retrieve the return value
-			parent_conn, child_conn = multiprocessing.Pipe()
-
-			# create and start the process
-			subproc = multiprocessing.Process(target=subprocess_func, name="pynisher function call", args = (func, child_conn,mem_in_mb, cpu_time_in_s, wall_time_in_s, num_processes) + args ,kwargs = kwargs)
-			logger.debug("Your function is called now.")
-
-			return_value = None
-
-			# start the process
-			subproc.start()
-			child_conn.close()
-
-			try:
-				# read the return value
-				if parent_conn.poll(wall_time_in_s):
-					return_value = parent_conn.recv()
-				else:
-					subproc.terminate()
-				
-			except EOFError:    # Don't see that in the unit tests :(
-				logger.debug("Your function call closed the pipe prematurely -> None will be returned")
-				return_value = None
-			except:
-				raise
-			finally:
-				# don't leave zombies behind
-				subproc.join()
-				return (return_value); 
-		return wrapped_function
-	return actual_decorator
-"""
-
 class enforce_limits (object):
 	def __init__(self, mem_in_mb=None, cpu_time_in_s=None, wall_time_in_s=None, num_processes=None, grace_period_in_s = None, logger = None):
 		self.mem_in_mb = mem_in_mb
@@ -231,14 +178,12 @@ class enforce_limits (object):
 				except EOFError:    # Don't see that in the unit tests :(
 					self.logger.debug("Your function call closed the pipe prematurely -> Subprocess probably got an uncatchable signal.")
 					
-					self2.resources_function = resource.getrusage(resource.RUSAGE_CHILDREN)
-					self2.resources_pynisher = resource.getrusage(resource.RUSAGE_SELF)
 					self2.exit_status = AnythingException
 
 				except:
 					self.logger.debug("Something else went wrong, sorry.")
 				finally:
-					print('fw:', self2.exit_status)
+					self2.resources_function = resource.getrusage(resource.RUSAGE_CHILDREN)
 					self2.exit_status = 5 if self2.exit_status is None else self2.exit_status
 					# don't leave zombies behind
 					subproc.join()
@@ -246,5 +191,3 @@ class enforce_limits (object):
 		
 		
 		return (function_wrapper(func))
-	
-
