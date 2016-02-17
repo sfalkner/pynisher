@@ -28,12 +28,9 @@ The full list of argments to enforce_limits reads:
 
 .. code-block:: python
 
-		pynisher.enforce_limits(mem_in_mb=None,\
-								cpu_time_in_s=None,\
-								wall_time_in_s=None,\
-								num_processes=None,\
-								grace_period_in_s = None,\
-								logger = None)
+		pynisher.enforce_limits(mem_in_mb=None,	cpu_time_in_s=None,\
+							wall_time_in_s=None, num_processes=None,\
+							grace_period_in_s = None, logger = None)
 
 The first four are actual constraints on the memory, the CPU time, the wall time, and the
 number of subprocesses of the function. All values should be integers or None, which means
@@ -76,10 +73,10 @@ is either zero (function returned properly) or one of the following exceptions:
 .. code-block:: python
 
 		pynisher.CpuTimeoutException	# CPU time limit was reached
-		pynisher.TimeoutException		# Wall clock time limit exceeded
+		pynisher.TimeoutException	# Wall clock time limit exceeded
 		pynisher.MemorylimitException	# function hit the memory constraint
 		pynisher.SubprocessException	# function tried to spawn too many subprocesses
-		pynisher.AnythingException		# Something else went wrong, e.g., your function received a signal and just died.
+		pynisher.AnythingException	# Something else went wrong, e.g., your function received a signal and just died.
 
 Here, the above issue about the grace period becomes interesting. Without it, it is likely that
 a AnythingException is returned where a Cpu-/TimeoutException would be appropriate.
