@@ -61,7 +61,7 @@ slight variation of the above example:
 		for t in range(5):
 			obj = pynisher.enforce_limits(wall_time_in_s=2)(my_function)
 			result = obj(t)
-			print(result, obj.relut, obj.exit_status)
+			print(result, obj.result, obj.exit_status, obj.wall_clock_time)
 		
 		# see all the available information
 		print(vars(f))

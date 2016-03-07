@@ -241,7 +241,6 @@ class test_limit_resources_module(unittest.TestCase):
 		start = time.time()
 		nested_pynisher(level=2, cputime = 2, walltime = 2, memlimit = None, increment = 1, grace_period = gp)
 		duration = time.time()-start
-		print(duration)
 
 		time.sleep(1)
 		p = psutil.Process()
