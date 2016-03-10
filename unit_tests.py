@@ -66,10 +66,10 @@ def svc_example(n_samples = 10000, n_features = 4):
 	from sklearn.svm import LinearSVC
 	from sklearn.preprocessing import PolynomialFeatures
 	from sklearn.datasets import make_classification
-	
+
 	X,Y = make_classification(n_samples, n_features)
 	#pp = PolynomialFeatures(degree=3)
-	
+
 	#X = pp.fit_transform(X)
 	m = LinearSVC()
 	m.fit(X,Y)
@@ -126,7 +126,7 @@ class test_limit_resources_module(unittest.TestCase):
 
 		wrapped_function = pynisher.enforce_limits(mem_in_mb = local_mem_in_mb, wall_time_in_s=local_wall_time_in_s, cpu_time_in_s = local_cpu_time_in_s, grace_period_in_s = local_grace_period)(simulate_work)
 
-		for mem in [1024, 2048, 4096]:
+		for mem in [2048, 4096,8192]:
 			self.assertIsNone(wrapped_function(mem,0,0))
 			self.assertEqual(wrapped_function.exit_status, pynisher.MemorylimitException)
 
@@ -171,7 +171,7 @@ class test_limit_resources_module(unittest.TestCase):
 		cpu_time_in_s = 2
 		grace_period = 1
 		wrapped_function = pynisher.enforce_limits(cpu_time_in_s = cpu_time_in_s, grace_period_in_s = grace_period)(cpu_usage)
-		
+
 		self.assertEqual(None,wrapped_function())
 		self.assertEqual(wrapped_function.exit_status, pynisher.CpuTimeoutException)
 
@@ -196,9 +196,9 @@ class test_limit_resources_module(unittest.TestCase):
 	@unittest.skipIf(not is_sklearn_available, "test requires scikit learn")
 	@unittest.skipIf(not all_tests, "skipping fitting an SVM to see how C libraries are handles")
 	def test_busy_in_C_library(self):
-		
+
 		global logger
-		
+
 		wrapped_function = pynisher.enforce_limits(wall_time_in_s = 2)(svm_example)
 
 		start = time.time()
@@ -214,12 +214,12 @@ class test_limit_resources_module(unittest.TestCase):
 	@unittest.skipIf(not is_sklearn_available, "test requires scikit learn")
 	@unittest.skipIf(not all_tests, "skipping fitting an SVM to see how C libraries are handles")
 	def test_liblinear_svc(self):
-		
+
 		global logger
-		
+
 		time_limit = 2
 		grace_period = 1
-		
+
 		wrapped_function = pynisher.enforce_limits(cpu_time_in_s = time_limit, mem_in_mb=None, grace_period_in_s=grace_period, logger=logger)(svc_example)
 		start = time.time()
 		wrapped_function(16384, 1000)
@@ -234,10 +234,10 @@ class test_limit_resources_module(unittest.TestCase):
 
 	@unittest.skipIf(not all_tests, "skipping nested pynisher test")
 	def test_nesting(self):
-		
+
 		tl = 2	#time limit
 		gp = 1	#grace period
-	   
+
 		start = time.time()
 		nested_pynisher(level=2, cputime = 2, walltime = 2, memlimit = None, increment = 1, grace_period = gp)
 		duration = time.time()-start
