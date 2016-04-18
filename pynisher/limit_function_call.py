@@ -89,7 +89,7 @@ def subprocess_func(func, pipe, logger, mem_in_mb, cpu_time_limit_in_s, wall_tim
 		if (e.errno == 11):
 			return_value = (None, SubprocessException)
 		else:
-			return_value = (None, AnyithingException)
+			return_value = (None, AnythingException)
 
 	except CpuTimeoutException:
 		return_value = (None, CpuTimeoutException)
@@ -209,7 +209,7 @@ class enforce_limits (object):
 
 				# create and start the process
 				subproc = multiprocessing.Process(target=subprocess_func, name="pynisher function call", args = (self2.func, child_conn, self.logger, self.mem_in_mb, self.cpu_time_in_s, self.wall_time_in_s, self.num_processes, self.grace_period_in_s) + args ,kwargs = kwargs)
-				self.logger.debug("Function called with argumen: {}, {}".format(args, kwargs))
+				self.logger.debug("Function called with argument: {}, {}".format(args, kwargs))
 
 
 				# start the process
