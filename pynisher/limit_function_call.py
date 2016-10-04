@@ -237,8 +237,11 @@ class enforce_limits (object):
 					self2.resources_pynisher = resource.getrusage(resource.RUSAGE_SELF)
 					self2.exit_status = AnythingException
 
-				except:
-					self.logger.debug("Something else went wrong, sorry.")
+				except Exception as e:
+					import traceback
+					tr = traceback.format_exc()
+					self.logger.error("Encountered exception '%s', "
+									  "sorry!\n%s", str(e), tr)
 				finally:
 					self2.wall_clock_time = time.time()-start
 					self2.exit_status = 5 if self2.exit_status is None else self2.exit_status

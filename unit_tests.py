@@ -210,6 +210,13 @@ class test_limit_resources_module(unittest.TestCase):
 		self.assertEqual(len(p.children(recursive=True)), 0)
 		self.assertTrue(duration < 2.1)
 
+	def test_useful_exception_for_to_high_timeout(self):
+
+		global logger
+
+		wrapped_function = pynisher.enforce_limits(
+			wall_time_in_s=999999999999999999999999999)(simulate_work)
+		wrapped_function(1, 0, 0)
 
 	@unittest.skipIf(not is_sklearn_available, "test requires scikit learn")
 	@unittest.skipIf(not all_tests, "skipping fitting an SVM to see how C libraries are handles")
