@@ -3,7 +3,7 @@ from setuptools import setup
 
 setup(
     name = 'pynisher',
-    version = "0.4.1",
+    version = "0.5.0",
     packages = ['pynisher'],
     install_requires = ['docutils>=0.3', 'setuptools', 'psutil'],
     author = "Stefan Falkner",
@@ -13,5 +13,5 @@ setup(
     keywords = "resources",
     license = "MIT",
     url = "https://github.com/sfalkner/pynisher",
-    download_url = "https://github.com/sfalkner/pynisher/tarball/0.4.1"
+    download_url = "https://github.com/sfalkner/pynisher/tarball/0.5.0"
 )
